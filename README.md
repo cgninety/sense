@@ -38,15 +38,22 @@ LEDs (with 220Ω resistors):
 
 ## Installation
 
-### Method 1: Direct Clone (Recommended)
+### Method 1: One-Line Install (Recommended)
+
+```bash
+# Download and run the simple installation script (no git required)
+curl -sSL https://raw.githubusercontent.com/cgninety/sense/main/install_simple.sh | bash
+```
+
+### Method 2: Git Clone
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/proximity-sensor-rpi.git
-cd proximity-sensor-rpi
+git clone https://github.com/cgninety/sense.git proximity-sensor
+cd proximity-sensor
 
 # Install dependencies
-pip3 install RPi.GPIO
+pip3 install --user -r requirements.txt
 
 # Make executable
 chmod +x proximity_sensor.py
@@ -55,11 +62,11 @@ chmod +x proximity_sensor.py
 python3 proximity_sensor.py
 ```
 
-### Method 2: Auto-deploy Script
+### Method 3: Full Auto-Install (with git)
 
 ```bash
-# Download and run the installation script
-curl -sSL https://raw.githubusercontent.com/yourusername/proximity-sensor-rpi/main/install.sh | bash
+# Download and run the full installation script
+curl -sSL https://raw.githubusercontent.com/cgninety/sense/main/install.sh | bash
 ```
 
 ## Configuration

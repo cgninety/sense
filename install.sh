@@ -52,28 +52,26 @@ fi
 
 # Create project directory
 PROJECT_DIR="$HOME/proximity-sensor"
-if [ ! -d "$PROJECT_DIR" ]; then
-    print_status "Creating project directory at $PROJECT_DIR"
-    mkdir -p "$PROJECT_DIR"
-fi
+print_status "Setting up project in $PROJECT_DIR"
 
-# Download project files (replace with your actual repository)
-print_status "Setting up project files..."
-cd "$PROJECT_DIR"
-
-# If git is available and this is a git repo
-if command -v git &> /dev/null && [ -d ".git" ]; then
-    print_status "Updating from git repository..."
-    git pull
+# Clone or update the repository
+if [ -d "$PROJECT_DIR" ]; then
+    print_status "Project directory exists, updating..."
+    cd "$PROJECT_DIR"
+    if [ -d ".git" ]; then
+        print_status "Pulling latest changes from GitHub..."
+        git pull origin main
+    else
+        print_status "Removing old directory and cloning fresh..."
+        cd "$HOME"
+        rm -rf "$PROJECT_DIR"
+        git clone https://github.com/cgninety/sense.git "$PROJECT_DIR"
+        cd "$PROJECT_DIR"
+    fi
 else
-    print_status "Copying project files..."
-    # Copy files from current directory if they exist
-    for file in proximity_sensor.py config.json README.md; do
-        if [ -f "../sense/$file" ]; then
-            cp "../sense/$file" .
-            print_status "Copied $file"
-        fi
-    done
+    print_status "Cloning repository from GitHub..."
+    git clone https://github.com/cgninety/sense.git "$PROJECT_DIR"
+    cd "$PROJECT_DIR"
 fi
 
 # Make the main script executable
