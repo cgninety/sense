@@ -290,50 +290,43 @@ class ProximitySensor:
             return self.max_bpm, 'red'
 
     def _update_blinking_led(self, distance: float):
-        """Update LED blinking based on current distance."""
+        """Update LED blinking based on current distance.""" 
         current_time = time.time()
         bpm, led_type = self._calculate_blink_rate(distance)
         
-        # Turn off all LEDs first
-        self._turn_off_all_leds()
+        self.logger.debug(f"Blinking LED: distance={distance:.1f}mm, bpm={bpm:.0f}, led_type={led_type}")
         
+        # Safe zone - solid green, no blinking
         if bpm == 0 or led_type is None:
-            # No blinking - solid green for safe zone
-            if distance >= self.safe_distance:
-                GPIO.output(self.led_green, True)
-                self.led_state['green'] = True
+            self._turn_off_all_leds()
+            GPIO.output(self.led_green, True)
+            self.led_state['green'] = True
+            self.logger.debug("Safe zone: Green LED solid ON")
             return
         
-        # Calculate blink interval (convert BPM to seconds per blink)
-        blink_interval = 60.0 / bpm / 2.0  # Divide by 2 for on/off cycle
+        # Calculate blink period (full on/off cycle) 
+        blink_period = 60.0 / bpm  # seconds per full blink cycle
         
-        # Update current settings if changed
-        if led_type != self.current_led or abs(blink_interval - self.current_blink_interval) > 0.01:
-            self.current_led = led_type
-            self.current_blink_interval = blink_interval
-            self.last_blink_time = current_time  # Reset timing
+        # Determine if LED should be on or off based on time
+        time_in_cycle = (current_time * bpm / 60.0) % 1.0  # 0-1 within cycle
+        led_should_be_on = time_in_cycle < 0.5  # On for first half, off for second half
         
-        # Handle blinking
-        time_since_last_blink = current_time - self.last_blink_time
+        self.logger.debug(f"Blink timing: period={blink_period:.3f}s, time_in_cycle={time_in_cycle:.3f}, should_be_on={led_should_be_on}")
         
-        if time_since_last_blink >= blink_interval:
-            # Toggle the LED
+        # Update LEDs
+        self._turn_off_all_leds()
+        
+        if led_should_be_on:
             if led_type == 'yellow':
-                new_state = not self.led_state['yellow']
-                GPIO.output(self.led_yellow, new_state)
-                self.led_state['yellow'] = new_state
+                GPIO.output(self.led_yellow, True)
+                self.led_state['yellow'] = True
+                self.logger.debug("Yellow LED ON")
             elif led_type == 'red':
-                new_state = not self.led_state['red']
-                GPIO.output(self.led_red, new_state)
-                self.led_state['red'] = new_state
-            
-            self.last_blink_time = current_time
+                GPIO.output(self.led_red, True) 
+                self.led_state['red'] = True
+                self.logger.debug("Red LED ON")
         else:
-            # Maintain current state (don't change LED during interval)
-            if led_type == 'yellow':
-                GPIO.output(self.led_yellow, self.led_state['yellow'])
-            elif led_type == 'red':
-                GPIO.output(self.led_red, self.led_state['red'])
+            self.logger.debug(f"{led_type.capitalize()} LED OFF (blinking)")
 
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals gracefully."""
@@ -373,6 +366,38 @@ class ProximitySensor:
             
         except Exception as e:
             self.logger.error(f"GPIO pin test failed: {e}")
+
+    def _test_led_functionality(self):
+        """Test LED functionality with different patterns."""
+        self.logger.info("Testing LED functionality...")
+        
+        try:
+            print("Testing Green LED (Safe zone)...")
+            self._turn_off_all_leds()
+            GPIO.output(self.led_green, True)
+            time.sleep(1)
+            self._turn_off_all_leds()
+            
+            print("Testing Yellow LED blinking (Caution zone)...")
+            for i in range(4):
+                GPIO.output(self.led_yellow, True)
+                time.sleep(0.3)
+                GPIO.output(self.led_yellow, False)
+                time.sleep(0.3)
+                print(f"  Blink {i+1}/4")
+                
+            print("Testing Red LED fast blinking (Danger zone)...")
+            for i in range(8):
+                GPIO.output(self.led_red, True)
+                time.sleep(0.15)
+                GPIO.output(self.led_red, False)
+                time.sleep(0.15)
+                print(f"  Fast blink {i+1}/8")
+                
+            print("✅ LED functionality test completed")
+            
+        except Exception as e:
+            self.logger.error(f"LED test failed: {e}")
 
     def get_distance(self) -> Optional[float]:
         """
@@ -476,6 +501,9 @@ class ProximitySensor:
                 
         except Exception as e:
             self.logger.error(f"LED update failed: {e}")
+            # Emergency fallback - use simple solid LEDs
+            self.logger.warning("Falling back to simple LED mode due to error")
+            self._update_solid_leds(distance)
 
     def _update_solid_leds(self, distance: float):
         """Original solid LED behavior (fallback when blinking disabled)."""
@@ -579,6 +607,8 @@ def main():
     parser.add_argument('--test-gpio', action='store_true', help='Test GPIO pins and exit')
     parser.add_argument('--config', default='config.json', help='Configuration file path')
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument('--no-blinking', action='store_true', help='Disable LED blinking (use solid LEDs only)')
+    parser.add_argument('--test-leds', action='store_true', help='Test LED functionality and exit')
     
     args = parser.parse_args()
     
@@ -588,6 +618,17 @@ def main():
             logging.getLogger().setLevel(logging.DEBUG)
         
         sensor = ProximitySensor(args.config)
+        
+        # Override blinking if disabled via command line
+        if args.no_blinking:
+            sensor.blinking_enabled = False
+            print("🔧 LED blinking disabled - using solid LEDs only")
+        
+        if args.test_leds:
+            print("🔧 Running LED functionality test...")
+            sensor._test_led_functionality()
+            sensor.cleanup()
+            return
         
         if args.test_gpio:
             print("🔧 Running GPIO diagnostics...")
