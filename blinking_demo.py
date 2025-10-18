@@ -16,7 +16,7 @@ def load_config():
         # Default values if config not found
         return {
             "thresholds": {"safe_distance": 100, "caution_distance": 50, "danger_distance": 10},
-            "blinking": {"base_bpm": 120, "min_bpm": 30, "max_bpm": 300}
+            "blinking": {"base_bpm": 60, "min_bpm": 30, "max_bpm": 120}
         }
 
 def calculate_blink_rate(distance, config):
@@ -116,9 +116,8 @@ def main():
     print()
     print("💡 Blinking Pattern Examples:")
     print(f"  30 BPM = 1 blink every 2 seconds (slowest)")
-    print(f"  60 BPM = 1 blink per second")
-    print(f"  120 BPM = 2 blinks per second (base rate)")
-    print(f"  300 BPM = 5 blinks per second (fastest)")
+    print(f"  60 BPM = 1 blink per second (base rate)")
+    print(f"  120 BPM = 2 blinks per second (fastest)")
     
     print()
     print("🎯 The closer you get, the faster it blinks!")

@@ -17,9 +17,9 @@
     "decimal_places": 2
   },
   "blinking": {
-    "base_bpm": 120,
+    "base_bpm": 60,
     "min_bpm": 30,
-    "max_bpm": 300,
+    "max_bpm": 120,
     "enabled": true
   },
   "sensor": {

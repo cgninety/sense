@@ -124,9 +124,9 @@ Configure the intelligent LED blinking system:
 {
   "blinking": {
     "enabled": true,          // Enable/disable dynamic blinking
-    "base_bpm": 120,          // Base blink rate (beats per minute)
-    "min_bpm": 30,            // Minimum blink rate (slowest)
-    "max_bpm": 300            // Maximum blink rate (fastest)
+    "base_bpm": 60,           // Base blink rate (1 blink/second)
+    "min_bpm": 30,            // Minimum rate (1 blink every 2 seconds)
+    "max_bpm": 120            // Maximum rate (2 blinks/second)
   }
 }
 ```
@@ -173,10 +173,12 @@ sudo systemctl status proximity-sensor
 
 The LEDs now use **intelligent blinking** that responds to your proximity:
 
-- **Base rate**: 120 blinks per minute (2 Hz)
-- **Caution zone**: Yellow LED blinks 30-120 BPM (slower → faster as you approach danger)
-- **Danger zone**: Red LED blinks 120-300 BPM (faster → much faster as you get closer)
-- **Critical zone**: Red LED at maximum 300 BPM (5 Hz)
+- **Slowest rate**: 30 BPM (1 blink every 2 seconds)
+- **Base rate**: 60 BPM (1 blink per second)  
+- **Fastest rate**: 120 BPM (2 blinks per second)
+- **Caution zone**: Yellow LED blinks 30-60 BPM (slower → faster as you approach danger)
+- **Danger zone**: Red LED blinks 60-120 BPM (faster as you get closer)
+- **Critical zone**: Red LED at maximum 120 BPM (2 blinks/second)
 
 **The closer you get, the faster it blinks!** ⚡
 

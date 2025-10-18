@@ -177,9 +177,9 @@ class ProximitySensor:
             },
             "blinking": {
                 "enabled": True,        # Enable dynamic blinking system
-                "base_bpm": 120,        # Base blink rate (beats per minute)
-                "min_bpm": 30,          # Minimum blink rate (slow end)
-                "max_bpm": 300          # Maximum blink rate (fast end)
+                "base_bpm": 60,         # Base blink rate (1 blink per second)
+                "min_bpm": 30,          # Minimum blink rate (1 blink every 2 seconds)
+                "max_bpm": 120          # Maximum blink rate (2 blinks per second)
             },
             "logging": {
                 "level": "INFO",
@@ -280,13 +280,13 @@ class ProximitySensor:
             # Normalize position (0 = very close, 1 = at caution threshold)
             normalized_pos = position_in_zone / zone_range if zone_range > 0 else 0
             
-            # Blink rate: base speed at caution end, faster as we get closer
+            # Blink rate: base speed at caution end (60 BPM), faster as we get closer (120 BPM max)
             bpm = self.base_bpm + (self.max_bpm - self.base_bpm) * (1 - normalized_pos)
             return max(self.base_bpm, min(self.max_bpm, bpm)), 'red'
             
         else:
-            # Critical zone: very fast red blashing
-            # Even faster blinking for very close distances
+            # Critical zone: maximum rate red blinking
+            # Maximum 2 blinks per second for very close distances
             return self.max_bpm, 'red'
 
     def _update_blinking_led(self, distance: float):
