@@ -1,0 +1,79 @@
+name: Deploy to Raspberry Pi
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pytest
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: Lint with flake8
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Validate configuration
+      run: |
+        python -c "import json; json.load(open('config.json'))"
+        echo "✅ Configuration file is valid JSON"
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Deploy to Raspberry Pi
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.RPI_HOST }}
+        username: ${{ secrets.RPI_USER }}
+        key: ${{ secrets.RPI_SSH_KEY }}
+        script: |
+          # Navigate to project directory
+          cd /home/pi/proximity-sensor || mkdir -p /home/pi/proximity-sensor
+          cd /home/pi/proximity-sensor
+          
+          # Pull latest changes
+          if [ -d ".git" ]; then
+            git pull origin main
+          else
+            git clone ${{ github.server_url }}/${{ github.repository }} .
+          fi
+          
+          # Install/update dependencies
+          pip3 install --user -r requirements.txt
+          
+          # Make scripts executable
+          chmod +x *.sh proximity_sensor.py
+          
+          # Restart service if it exists
+          if systemctl is-active --quiet proximity-sensor; then
+            sudo systemctl restart proximity-sensor
+            echo "✅ Service restarted"
+          else
+            echo "ℹ️  Service not running, install with: sudo ./install_service.sh"
+          fi
+          
+          echo "🚀 Deployment completed successfully!"

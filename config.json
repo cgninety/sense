@@ -1,0 +1,23 @@
+{
+  "pins": {
+    "trig": 23,
+    "echo": 24,
+    "led_green": 17,
+    "led_yellow": 27,
+    "led_red": 22
+  },
+  "thresholds": {
+    "safe_distance": 100,
+    "caution_distance": 50,
+    "danger_distance": 10
+  },
+  "sensor": {
+    "timeout": 0.1,
+    "measurement_interval": 0.1,
+    "max_retries": 3
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "proximity_sensor.log"
+  }
+}
