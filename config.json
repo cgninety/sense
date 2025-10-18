@@ -11,6 +11,11 @@
     "caution_distance": 50,
     "danger_distance": 10
   },
+  "display": {
+    "units": "both",
+    "primary_unit": "mm",
+    "decimal_places": 2
+  },
   "sensor": {
     "timeout": 0.5,
     "measurement_interval": 0.5,

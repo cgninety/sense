@@ -151,8 +151,10 @@ def test_pins():
                 else:
                     if pulse_start and pulse_end:
                         pulse_duration = pulse_end - pulse_start
-                        distance = pulse_duration * 17150
-                        print(f"      ✅ Distance: {distance:.1f}mm")
+                        # Accurate speed of sound calculation: 343 m/s at 20°C
+                        distance_mm = pulse_duration * 171500  # (343,000 mm/s) / 2
+                        distance_inches = distance_mm / 25.4   # International standard conversion
+                        print(f"      ✅ Distance: {distance_mm:.1f}mm ({distance_inches:.2f}in)")
                     else:
                         print("      ❌ Failed to measure pulse timing")
             

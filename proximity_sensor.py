@@ -49,6 +49,50 @@ from pathlib import Path
 from typing import Optional
 
 
+class UnitConverter:
+    """Handle unit conversions for distance measurements."""
+    
+    @staticmethod
+    def mm_to_inches(mm: float) -> float:
+        """Convert millimeters to inches with high precision."""
+        # 1 inch = 25.4 mm exactly (international definition)
+        return mm / 25.4
+    
+    @staticmethod
+    def mm_to_cm(mm: float) -> float:
+        """Convert millimeters to centimeters."""
+        return mm / 10.0
+    
+    @staticmethod
+    def mm_to_feet(mm: float) -> float:
+        """Convert millimeters to feet."""
+        return mm / 304.8  # 25.4 * 12
+    
+    @staticmethod
+    def format_distance(mm: float, units: str = "both", primary: str = "mm", decimal_places: int = 2) -> str:
+        """Format distance with specified units."""
+        if units == "mm":
+            return f"{mm:.{decimal_places}f}mm"
+        elif units == "inches":
+            inches = UnitConverter.mm_to_inches(mm)
+            return f"{inches:.{decimal_places}f}in"
+        elif units == "cm":
+            cm = UnitConverter.mm_to_cm(mm)
+            return f"{cm:.{decimal_places}f}cm"
+        elif units == "both":
+            inches = UnitConverter.mm_to_inches(mm)
+            if primary == "mm":
+                return f"{mm:.{decimal_places}f}mm ({inches:.{decimal_places}f}in)"
+            else:
+                return f"{inches:.{decimal_places}f}in ({mm:.{decimal_places}f}mm)"
+        elif units == "all":
+            inches = UnitConverter.mm_to_inches(mm)
+            cm = UnitConverter.mm_to_cm(mm)
+            return f"{mm:.{decimal_places}f}mm | {cm:.{decimal_places}f}cm | {inches:.{decimal_places}f}in"
+        else:
+            return f"{mm:.{decimal_places}f}mm"
+
+
 class ProximitySensor:
     """Ultrasonic proximity sensor with LED feedback system."""
     
@@ -72,10 +116,15 @@ class ProximitySensor:
         self.led_yellow = self.config['pins']['led_yellow']
         self.led_red = self.config['pins']['led_red']
         
-        # Distance thresholds
+        # Distance thresholds (always in mm internally)
         self.safe_distance = self.config['thresholds']['safe_distance']
         self.caution_distance = self.config['thresholds']['caution_distance']
         self.danger_distance = self.config['thresholds']['danger_distance']
+        
+        # Display settings
+        self.display_units = self.config.get('display', {}).get('units', 'mm')
+        self.primary_unit = self.config.get('display', {}).get('primary_unit', 'mm')
+        self.decimal_places = self.config.get('display', {}).get('decimal_places', 2)
         
         # Setup GPIO
         self._setup_gpio()
@@ -100,14 +149,19 @@ class ProximitySensor:
                 "led_red": 22
             },
             "thresholds": {
-                "safe_distance": 100,
-                "caution_distance": 50,
-                "danger_distance": 10
+                "safe_distance": 100,    # 100mm = ~3.94 inches
+                "caution_distance": 50,  # 50mm = ~1.97 inches  
+                "danger_distance": 10    # 10mm = ~0.39 inches
             },
             "sensor": {
-                "timeout": 0.1,
-                "measurement_interval": 0.1,
-                "max_retries": 3
+                "timeout": 0.5,
+                "measurement_interval": 0.5,
+                "max_retries": 5
+            },
+            "display": {
+                "units": "both",        # Options: "mm", "inches", "cm", "both", "all"
+                "primary_unit": "mm",   # Primary unit when showing "both"
+                "decimal_places": 2     # Number of decimal places to display
             },
             "logging": {
                 "level": "INFO",
@@ -222,11 +276,11 @@ class ProximitySensor:
         # If GPIO is not available, return simulated distance for testing
         if not GPIO_AVAILABLE:
             import random
-            # Simulate varying distance readings for demo
-            base_distance = 150
-            variation = random.randint(-50, 50)
+            # Simulate varying distance readings for demo (realistic HC-SR04 range)
+            base_distance = 150.0  # 150mm = ~5.9 inches
+            variation = random.uniform(-50, 50)
             simulated_distance = base_distance + variation
-            return max(20, min(4000, simulated_distance))
+            return round(max(20.0, min(4000.0, simulated_distance)), 2)
         
         try:
             # Ensure trigger is low and wait for stabilization
@@ -279,9 +333,13 @@ class ProximitySensor:
                 self.logger.warning("Failed to capture pulse timing")
                 return None
             
-            # Calculate distance
+            # Calculate distance with accurate speed of sound
             pulse_duration = pulse_end - pulse_start
-            distance = pulse_duration * 17150  # Convert to mm
+            
+            # Speed of sound at 20°C (68°F) is 343 m/s = 343,000 mm/s
+            # Distance = (speed × time) / 2 (divide by 2 because sound travels to object and back)
+            # Distance in mm = (343,000 × pulse_duration) / 2 = 171,500 × pulse_duration
+            distance = pulse_duration * 171500  # Accurate conversion to mm
             
             # Log pulse details for debugging
             self.logger.debug(f"Pulse duration: {pulse_duration:.6f}s, Distance: {distance:.2f}mm")
@@ -343,11 +401,20 @@ class ProximitySensor:
                 
                 if distance is not None:
                     failed_readings = 0
-                    self.logger.debug(f"Distance: {distance}mm")
+                    
+                    # Format distance with configured units
+                    distance_str = UnitConverter.format_distance(
+                        distance, 
+                        self.display_units, 
+                        self.primary_unit, 
+                        self.decimal_places
+                    )
+                    
+                    self.logger.debug(f"Distance: {distance_str}")
                     self.update_leds(distance)
                     
-                    # Print to console for monitoring
-                    print(f"Distance: {distance}mm")
+                    # Print to console for monitoring with units
+                    print(f"Distance: {distance_str}")
                     
                 else:
                     failed_readings += 1

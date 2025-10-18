@@ -73,10 +73,61 @@ curl -sSL https://raw.githubusercontent.com/cgninety/sense/main/install.sh | bas
 
 Edit `config.json` to customize:
 
-- **GPIO pins**: Change pin assignments for your wiring
-- **Distance thresholds**: Adjust safe/caution/danger distances
-- **Sensor settings**: Modify timeout and retry settings
-- **Logging**: Set log level and file location
+### GPIO Pins
+Change pin assignments for your wiring:
+```json
+{
+  "pins": {
+    "trig": 23,
+    "echo": 24, 
+    "led_green": 17,
+    "led_yellow": 27,
+    "led_red": 22
+  }
+}
+```
+
+### Distance Thresholds
+Adjust sensitivity (values always in millimeters):
+```json
+{
+  "thresholds": {
+    "safe_distance": 100,     // 100mm = ~3.94 inches (Green LED)
+    "caution_distance": 50,   // 50mm = ~1.97 inches (Yellow LED)
+    "danger_distance": 10     // 10mm = ~0.39 inches (Red LED solid)
+  }
+}
+```
+
+### Display Units
+Configure how distances are displayed:
+```json
+{
+  "display": {
+    "units": "both",          // Options: "mm", "inches", "cm", "both", "all"
+    "primary_unit": "mm",     // Primary unit when showing "both"  
+    "decimal_places": 2       // Number of decimal places
+  }
+}
+```
+
+**Unit Display Options:**
+- `"mm"` → `150.25mm`
+- `"inches"` → `5.91in`  
+- `"cm"` → `15.03cm`
+- `"both"` → `150.25mm (5.91in)` or `5.91in (150.25mm)`
+- `"all"` → `150.25mm | 15.03cm | 5.91in`
+
+### Sensor Settings
+Modify timeout and retry settings:
+```json
+{
+  "sensor": {
+    "timeout": 0.5,           // Sensor timeout in seconds
+    "measurement_interval": 0.5,  // Time between readings
+    "max_retries": 5          // Max failed readings before stopping
+  }
+}
 
 ## Usage
 
@@ -100,10 +151,10 @@ sudo systemctl status proximity-sensor
 
 | Distance Range | LED Status | Description |
 |----------------|------------|-------------|
-| ≥ 100mm | Green ON | Safe distance |
-| 50-99mm | Yellow ON | Caution zone |
-| 10-49mm | Red ON | Danger zone |
-| < 10mm | Red FLASHING | Critical proximity |
+| ≥ 100mm (≥3.94in) | Green ON | Safe distance |
+| 50-99mm (1.97-3.90in) | Yellow ON | Caution zone |
+| 10-49mm (0.39-1.93in) | Red ON | Danger zone |
+| < 10mm (<0.39in) | Red FLASHING | Critical proximity |
 
 ## Monitoring
 
