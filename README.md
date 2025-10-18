@@ -114,10 +114,21 @@ sudo systemctl status proximity-sensor
 ## Troubleshooting
 
 ### Quick Diagnostics
-If you get `ModuleNotFoundError: No module named 'RPi'`, run the diagnostic script:
 
+**If you get `ModuleNotFoundError: No module named 'RPi'`:**
 ```bash
 python3 troubleshoot_gpio.py
+```
+
+**If you get "Timeout waiting for echo start" errors:**
+```bash
+# Test GPIO pins and wiring
+python3 test_wiring.py
+
+# Test with diagnostics mode
+python3 proximity_sensor.py --test-gpio
+
+# Check your wiring connections (see wiring diagram above)
 ```
 
 ### Common Issues
@@ -136,10 +147,18 @@ python3 troubleshoot_gpio.py
    # Log out and back in
    ```
 
-3. **No distance readings**: 
-   - Check wiring and 5V power supply
-   - Verify sensor connections
-   - Run: `python3 troubleshoot_gpio.py`
+3. **"Timeout waiting for echo start" - No distance readings**: 
+   ```bash
+   # Step-by-step diagnosis:
+   python3 test_wiring.py        # Interactive wiring test
+   python3 proximity_sensor.py --test-gpio  # GPIO diagnostics
+   ```
+   **Common causes:**
+   - Echo pin not connected to GPIO 24
+   - Sensor not getting 5V power (check Pin 2)
+   - Loose breadboard connections
+   - Wrong GPIO pin numbers in config.json
+   - Faulty HC-SR04 sensor
 
 4. **Erratic readings**: 
    - Ensure stable mounting and clean sensor face

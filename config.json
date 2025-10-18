@@ -12,9 +12,9 @@
     "danger_distance": 10
   },
   "sensor": {
-    "timeout": 0.1,
-    "measurement_interval": 0.1,
-    "max_retries": 3
+    "timeout": 0.5,
+    "measurement_interval": 0.5,
+    "max_retries": 5
   },
   "logging": {
     "level": "INFO",

@@ -180,6 +180,40 @@ class ProximitySensor:
         self.logger.info(f"Received signal {signum}, shutting down...")
         self.stop()
 
+    def test_gpio_pins(self):
+        """Test GPIO pin functionality for diagnostics."""
+        self.logger.info("Testing GPIO pin functionality...")
+        
+        try:
+            # Test trigger pin
+            self.logger.info(f"Testing trigger pin GPIO {self.trig_pin}")
+            GPIO.output(self.trig_pin, True)
+            time.sleep(0.1)
+            GPIO.output(self.trig_pin, False)
+            self.logger.info("✅ Trigger pin test passed")
+            
+            # Test echo pin - check if it's stuck
+            echo_state = GPIO.input(self.echo_pin)
+            self.logger.info(f"Echo pin GPIO {self.echo_pin} current state: {echo_state}")
+            
+            if echo_state == 1:
+                self.logger.warning("⚠️ Echo pin is stuck HIGH - check wiring")
+            else:
+                self.logger.info("✅ Echo pin state looks normal")
+            
+            # Test LED pins
+            for led_name, pin in [("Green", self.led_green), ("Yellow", self.led_yellow), ("Red", self.led_red)]:
+                self.logger.info(f"Testing {led_name} LED on GPIO {pin}")
+                GPIO.output(pin, True)
+                time.sleep(0.2)
+                GPIO.output(pin, False)
+                time.sleep(0.1)
+            
+            self.logger.info("✅ GPIO pin tests completed")
+            
+        except Exception as e:
+            self.logger.error(f"GPIO pin test failed: {e}")
+
     def get_distance(self) -> Optional[float]:
         """
         Measure distance using ultrasonic sensor.
@@ -195,22 +229,41 @@ class ProximitySensor:
             return max(20, min(4000, simulated_distance))
         
         try:
-            # Ensure trigger is low
+            # Ensure trigger is low and wait for stabilization
             GPIO.output(self.trig_pin, False)
-            time.sleep(0.05)
+            time.sleep(0.1)  # Increased wait time
+            
+            # Check initial echo state
+            initial_echo = GPIO.input(self.echo_pin)
+            if initial_echo == 1:
+                self.logger.warning("Echo pin is HIGH before trigger - possible wiring issue")
+                # Try to wait for it to go low
+                wait_start = time.time()
+                while GPIO.input(self.echo_pin) == 1 and (time.time() - wait_start) < 0.5:
+                    time.sleep(0.01)
+                if GPIO.input(self.echo_pin) == 1:
+                    self.logger.error("Echo pin stuck HIGH - aborting measurement")
+                    return None
             
             # Send trigger pulse
             GPIO.output(self.trig_pin, True)
             time.sleep(0.00001)  # 10 microseconds
             GPIO.output(self.trig_pin, False)
             
-            # Wait for echo start with timeout
+            # Wait for echo start with timeout and better logging
             pulse_start = None
             timeout_start = time.time()
+            timeout_duration = self.config['sensor']['timeout']
+            
             while GPIO.input(self.echo_pin) == 0:
                 pulse_start = time.time()
-                if time.time() - timeout_start > self.config['sensor']['timeout']:
-                    self.logger.warning("Timeout waiting for echo start")
+                if time.time() - timeout_start > timeout_duration:
+                    self.logger.warning(f"Timeout waiting for echo start after {timeout_duration}s")
+                    self.logger.info("Possible causes:")
+                    self.logger.info("  - Echo pin not connected or loose connection")
+                    self.logger.info("  - Wrong GPIO pin number in config")
+                    self.logger.info("  - Sensor not powered (needs 5V)")
+                    self.logger.info("  - Faulty HC-SR04 sensor")
                     return None
             
             # Wait for echo end with timeout
@@ -218,20 +271,27 @@ class ProximitySensor:
             timeout_start = time.time()
             while GPIO.input(self.echo_pin) == 1:
                 pulse_end = time.time()
-                if time.time() - timeout_start > self.config['sensor']['timeout']:
-                    self.logger.warning("Timeout waiting for echo end")
+                if time.time() - timeout_start > timeout_duration:
+                    self.logger.warning(f"Timeout waiting for echo end after {timeout_duration}s")
                     return None
             
             if pulse_start is None or pulse_end is None:
+                self.logger.warning("Failed to capture pulse timing")
                 return None
             
             # Calculate distance
             pulse_duration = pulse_end - pulse_start
             distance = pulse_duration * 17150  # Convert to mm
             
+            # Log pulse details for debugging
+            self.logger.debug(f"Pulse duration: {pulse_duration:.6f}s, Distance: {distance:.2f}mm")
+            
             # Validate reasonable distance (HC-SR04 range: 2cm to 4m)
-            if distance < 20 or distance > 4000:
-                self.logger.warning(f"Distance out of range: {distance}mm")
+            if distance < 20:
+                self.logger.debug(f"Distance too close: {distance}mm (sensor minimum ~20mm)")
+                return None
+            elif distance > 4000:
+                self.logger.debug(f"Distance too far: {distance}mm (sensor maximum ~4000mm)")
                 return None
             
             return round(distance, 2)
@@ -318,9 +378,41 @@ class ProximitySensor:
 
 def main():
     """Main entry point."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Proximity Sensor with LED Indicators')
+    parser.add_argument('--test-gpio', action='store_true', help='Test GPIO pins and exit')
+    parser.add_argument('--config', default='config.json', help='Configuration file path')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    
+    args = parser.parse_args()
+    
     try:
-        sensor = ProximitySensor()
+        # Temporarily set debug logging if requested
+        if args.debug:
+            logging.getLogger().setLevel(logging.DEBUG)
+        
+        sensor = ProximitySensor(args.config)
+        
+        if args.test_gpio:
+            print("🔧 Running GPIO diagnostics...")
+            sensor.test_gpio_pins()
+            
+            # Test a few distance readings
+            print("📏 Testing distance measurements (5 attempts)...")
+            for i in range(5):
+                distance = sensor.get_distance()
+                if distance is not None:
+                    print(f"   Attempt {i+1}: {distance}mm ✅")
+                else:
+                    print(f"   Attempt {i+1}: Failed ❌")
+                time.sleep(1)
+            
+            sensor.cleanup()
+            return
+        
         sensor.run()
+        
     except KeyboardInterrupt:
         print("\nShutdown requested by user")
     except Exception as e:
