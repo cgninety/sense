@@ -42,7 +42,7 @@ LEDs (with 220Ω resistors):
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/proximity-sensor-rpi.git
+git clone https://github.com/cgninety/proximity-sensor-rpi.git
 cd proximity-sensor-rpi
 
 # Install dependencies
@@ -59,7 +59,7 @@ python3 proximity_sensor.py
 
 ```bash
 # Download and run the installation script
-curl -sSL https://raw.githubusercontent.com/yourusername/proximity-sensor-rpi/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/cgninety/proximity-sensor-rpi/main/install.sh | bash
 ```
 
 ## Configuration
