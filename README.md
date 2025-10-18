@@ -118,13 +118,26 @@ Configure how distances are displayed:
 - `"both"` → `150.25mm (5.91in)` or `5.91in (150.25mm)`
 - `"all"` → `150.25mm | 15.03cm | 5.91in`
 
+### Dynamic Blinking
+Configure the intelligent LED blinking system:
+```json
+{
+  "blinking": {
+    "enabled": true,          // Enable/disable dynamic blinking
+    "base_bpm": 120,          // Base blink rate (beats per minute)
+    "min_bpm": 30,            // Minimum blink rate (slowest)
+    "max_bpm": 300            // Maximum blink rate (fastest)
+  }
+}
+```
+
 ### Sensor Settings
 Modify timeout and retry settings:
 ```json
 {
   "sensor": {
     "timeout": 0.5,           // Sensor timeout in seconds
-    "measurement_interval": 0.5,  // Time between readings
+    "measurement_interval": 0.1,  // Time between readings (shorter for smooth blinking)
     "max_retries": 5          // Max failed readings before stopping
   }
 }
@@ -151,10 +164,21 @@ sudo systemctl status proximity-sensor
 
 | Distance Range | LED Status | Description |
 |----------------|------------|-------------|
-| ≥ 100mm (≥3.94in) | Green ON | Safe distance |
-| 50-99mm (1.97-3.90in) | Yellow ON | Caution zone |
-| 10-49mm (0.39-1.93in) | Red ON | Danger zone |
-| < 10mm (<0.39in) | Red FLASHING | Critical proximity |
+| ≥ 100mm (≥3.94in) | 🟢 Green SOLID | Safe distance - no blinking |
+| 50-99mm (1.97-3.90in) | 🟡 Yellow BLINKING | Caution zone - slower near safe, faster near danger |
+| 10-49mm (0.39-1.93in) | 🔴 Red BLINKING | Danger zone - faster as you get closer |
+| < 10mm (<0.39in) | 🔴 Red FAST BLINKING | Critical proximity - maximum blink rate |
+
+### Dynamic Blinking System
+
+The LEDs now use **intelligent blinking** that responds to your proximity:
+
+- **Base rate**: 120 blinks per minute (2 Hz)
+- **Caution zone**: Yellow LED blinks 30-120 BPM (slower → faster as you approach danger)
+- **Danger zone**: Red LED blinks 120-300 BPM (faster → much faster as you get closer)
+- **Critical zone**: Red LED at maximum 300 BPM (5 Hz)
+
+**The closer you get, the faster it blinks!** ⚡
 
 ## Monitoring
 

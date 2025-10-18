@@ -126,6 +126,18 @@ class ProximitySensor:
         self.primary_unit = self.config.get('display', {}).get('primary_unit', 'mm')
         self.decimal_places = self.config.get('display', {}).get('decimal_places', 2)
         
+        # Blinking settings
+        self.blinking_enabled = self.config.get('blinking', {}).get('enabled', True)
+        self.base_bpm = self.config.get('blinking', {}).get('base_bpm', 120)
+        self.min_bpm = self.config.get('blinking', {}).get('min_bpm', 30)
+        self.max_bpm = self.config.get('blinking', {}).get('max_bpm', 300)
+        
+        # LED state tracking for blinking
+        self.led_state = {'green': False, 'yellow': False, 'red': False}
+        self.last_blink_time = time.time()
+        self.current_led = None
+        self.current_blink_interval = 0
+        
         # Setup GPIO
         self._setup_gpio()
         
@@ -155,13 +167,19 @@ class ProximitySensor:
             },
             "sensor": {
                 "timeout": 0.5,
-                "measurement_interval": 0.5,
+                "measurement_interval": 0.1,  # Shorter for smooth blinking
                 "max_retries": 5
             },
             "display": {
                 "units": "both",        # Options: "mm", "inches", "cm", "both", "all"
                 "primary_unit": "mm",   # Primary unit when showing "both"
                 "decimal_places": 2     # Number of decimal places to display
+            },
+            "blinking": {
+                "enabled": True,        # Enable dynamic blinking system
+                "base_bpm": 120,        # Base blink rate (beats per minute)
+                "min_bpm": 30,          # Minimum blink rate (slow end)
+                "max_bpm": 300          # Maximum blink rate (fast end)
             },
             "logging": {
                 "level": "INFO",
@@ -228,6 +246,94 @@ class ProximitySensor:
         GPIO.output(self.led_green, False)
         GPIO.output(self.led_yellow, False)
         GPIO.output(self.led_red, False)
+        self.led_state = {'green': False, 'yellow': False, 'red': False}
+
+    def _calculate_blink_rate(self, distance: float) -> tuple:
+        """
+        Calculate blink rate based on distance within zones.
+        Returns (bpm, led_type) where bpm is beats per minute.
+        """
+        if not self.blinking_enabled:
+            return 0, None
+            
+        if distance >= self.safe_distance:
+            # Safe zone - no blinking
+            return 0, None
+            
+        elif distance >= self.caution_distance:
+            # Caution zone: blink yellow LED
+            # Faster blinking as we approach danger zone
+            zone_range = self.safe_distance - self.caution_distance
+            position_in_zone = distance - self.caution_distance
+            # Normalize position (0 = at danger threshold, 1 = at safe threshold)
+            normalized_pos = position_in_zone / zone_range
+            
+            # Blink rate: slow at safe end, faster at danger end
+            bpm = self.min_bpm + (self.base_bpm - self.min_bpm) * (1 - normalized_pos)
+            return max(self.min_bpm, min(self.base_bpm, bpm)), 'yellow'
+            
+        elif distance >= self.danger_distance:
+            # Danger zone: blink red LED
+            # Faster blinking as we approach closer distances
+            zone_range = self.caution_distance - self.danger_distance
+            position_in_zone = distance - self.danger_distance
+            # Normalize position (0 = very close, 1 = at caution threshold)
+            normalized_pos = position_in_zone / zone_range if zone_range > 0 else 0
+            
+            # Blink rate: base speed at caution end, faster as we get closer
+            bpm = self.base_bpm + (self.max_bpm - self.base_bpm) * (1 - normalized_pos)
+            return max(self.base_bpm, min(self.max_bpm, bpm)), 'red'
+            
+        else:
+            # Critical zone: very fast red blashing
+            # Even faster blinking for very close distances
+            return self.max_bpm, 'red'
+
+    def _update_blinking_led(self, distance: float):
+        """Update LED blinking based on current distance."""
+        current_time = time.time()
+        bpm, led_type = self._calculate_blink_rate(distance)
+        
+        # Turn off all LEDs first
+        self._turn_off_all_leds()
+        
+        if bpm == 0 or led_type is None:
+            # No blinking - solid green for safe zone
+            if distance >= self.safe_distance:
+                GPIO.output(self.led_green, True)
+                self.led_state['green'] = True
+            return
+        
+        # Calculate blink interval (convert BPM to seconds per blink)
+        blink_interval = 60.0 / bpm / 2.0  # Divide by 2 for on/off cycle
+        
+        # Update current settings if changed
+        if led_type != self.current_led or abs(blink_interval - self.current_blink_interval) > 0.01:
+            self.current_led = led_type
+            self.current_blink_interval = blink_interval
+            self.last_blink_time = current_time  # Reset timing
+        
+        # Handle blinking
+        time_since_last_blink = current_time - self.last_blink_time
+        
+        if time_since_last_blink >= blink_interval:
+            # Toggle the LED
+            if led_type == 'yellow':
+                new_state = not self.led_state['yellow']
+                GPIO.output(self.led_yellow, new_state)
+                self.led_state['yellow'] = new_state
+            elif led_type == 'red':
+                new_state = not self.led_state['red']
+                GPIO.output(self.led_red, new_state)
+                self.led_state['red'] = new_state
+            
+            self.last_blink_time = current_time
+        else:
+            # Maintain current state (don't change LED during interval)
+            if led_type == 'yellow':
+                GPIO.output(self.led_yellow, self.led_state['yellow'])
+            elif led_type == 'red':
+                GPIO.output(self.led_red, self.led_state['red'])
 
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals gracefully."""
@@ -359,33 +465,47 @@ class ProximitySensor:
             return None
 
     def update_leds(self, distance: float):
-        """Update LED status based on distance."""
+        """Update LED status based on distance with dynamic blinking."""
         try:
-            # Turn off all LEDs first
-            self._turn_off_all_leds()
-            
-            if distance >= self.safe_distance:
-                # Safe distance - green LED
-                GPIO.output(self.led_green, True)
-                
-            elif distance >= self.caution_distance:
-                # Caution distance - yellow LED
-                GPIO.output(self.led_yellow, True)
-                
-            elif distance >= self.danger_distance:
-                # Danger distance - red LED solid
-                GPIO.output(self.led_red, True)
-                
+            if self.blinking_enabled:
+                # Use new blinking system
+                self._update_blinking_led(distance)
             else:
-                # Very close - flash red LED with variable speed
-                flash_delay = max(0.05, distance / 200.0)
-                GPIO.output(self.led_red, True)
-                time.sleep(flash_delay)
-                GPIO.output(self.led_red, False)
-                time.sleep(flash_delay)
+                # Fall back to original solid LED behavior
+                self._update_solid_leds(distance)
                 
         except Exception as e:
             self.logger.error(f"LED update failed: {e}")
+
+    def _update_solid_leds(self, distance: float):
+        """Original solid LED behavior (fallback when blinking disabled)."""
+        # Turn off all LEDs first
+        self._turn_off_all_leds()
+        
+        if distance >= self.safe_distance:
+            # Safe distance - green LED
+            GPIO.output(self.led_green, True)
+            self.led_state['green'] = True
+            
+        elif distance >= self.caution_distance:
+            # Caution distance - yellow LED
+            GPIO.output(self.led_yellow, True)
+            self.led_state['yellow'] = True
+            
+        elif distance >= self.danger_distance:
+            # Danger distance - red LED solid
+            GPIO.output(self.led_red, True)
+            self.led_state['red'] = True
+            
+        else:
+            # Very close - flash red LED with variable speed
+            flash_delay = max(0.05, distance / 200.0)
+            GPIO.output(self.led_red, True)
+            self.led_state['red'] = True
+            time.sleep(flash_delay)
+            GPIO.output(self.led_red, False)
+            self.led_state['red'] = False
+            time.sleep(flash_delay)
 
     def run(self):
         """Main sensor loop."""
@@ -410,11 +530,19 @@ class ProximitySensor:
                         self.decimal_places
                     )
                     
+                    # Get blinking info for display
+                    bpm, led_type = self._calculate_blink_rate(distance)
+                    
                     self.logger.debug(f"Distance: {distance_str}")
                     self.update_leds(distance)
                     
-                    # Print to console for monitoring with units
-                    print(f"Distance: {distance_str}")
+                    # Print to console with blinking info
+                    if bpm > 0 and led_type:
+                        zone = "CAUTION" if led_type == 'yellow' else "DANGER" if distance >= self.danger_distance else "CRITICAL"
+                        print(f"Distance: {distance_str} | {zone} - {led_type.upper()} blinking at {bpm:.0f} BPM")
+                    else:
+                        zone = "SAFE" if distance >= self.safe_distance else "UNKNOWN"
+                        print(f"Distance: {distance_str} | {zone} - GREEN solid")
                     
                 else:
                     failed_readings += 1

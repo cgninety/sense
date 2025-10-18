@@ -16,9 +16,15 @@
     "primary_unit": "mm",
     "decimal_places": 2
   },
+  "blinking": {
+    "base_bpm": 120,
+    "min_bpm": 30,
+    "max_bpm": 300,
+    "enabled": true
+  },
   "sensor": {
     "timeout": 0.5,
-    "measurement_interval": 0.5,
+    "measurement_interval": 0.1,
     "max_retries": 5
   },
   "logging": {
