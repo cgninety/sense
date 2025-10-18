@@ -4,7 +4,42 @@ Proximity Sensor with LED Indicators
 Uses HC-SR04 ultrasonic sensor to detect object distance and provide visual feedback.
 """
 
-import RPi.GPIO as GPIO
+# Try to import RPi.GPIO with fallback for testing/development
+try:
+    import RPi.GPIO as GPIO
+    GPIO_AVAILABLE = True
+except ImportError as e:
+    print("⚠️  RPi.GPIO not available. This might be because:")
+    print("   1. You're not running on a Raspberry Pi")
+    print("   2. RPi.GPIO is not installed")
+    print("   3. You need to run: sudo apt install python3-rpi.gpio")
+    print("   4. Or try: pip3 install RPi.GPIO")
+    print(f"   Error: {e}")
+    
+    # Create a mock GPIO for testing on non-Pi systems
+    class MockGPIO:
+        BCM = "BCM"
+        OUT = "OUT" 
+        IN = "IN"
+        HIGH = 1
+        LOW = 0
+        
+        @staticmethod
+        def setmode(mode): pass
+        @staticmethod
+        def setwarnings(warnings): pass
+        @staticmethod
+        def setup(pin, mode): pass
+        @staticmethod
+        def output(pin, state): pass
+        @staticmethod
+        def input(pin): return 0
+        @staticmethod
+        def cleanup(): pass
+    
+    GPIO = MockGPIO()
+    GPIO_AVAILABLE = False
+
 import time
 import logging
 import signal
@@ -21,6 +56,11 @@ class ProximitySensor:
         """Initialize the proximity sensor with configuration."""
         self.config = self._load_config(config_file)
         self.running = False
+        
+        # Check if GPIO is available
+        if not GPIO_AVAILABLE:
+            print("⚠️  Running in mock mode - GPIO operations will be simulated")
+            print("   Install RPi.GPIO properly to use real hardware")
         
         # Setup logging
         self._setup_logging()
@@ -145,6 +185,15 @@ class ProximitySensor:
         Measure distance using ultrasonic sensor.
         Returns distance in millimeters or None if measurement fails.
         """
+        # If GPIO is not available, return simulated distance for testing
+        if not GPIO_AVAILABLE:
+            import random
+            # Simulate varying distance readings for demo
+            base_distance = 150
+            variation = random.randint(-50, 50)
+            simulated_distance = base_distance + variation
+            return max(20, min(4000, simulated_distance))
+        
         try:
             # Ensure trigger is low
             GPIO.output(self.trig_pin, False)

@@ -113,17 +113,56 @@ sudo systemctl status proximity-sensor
 
 ## Troubleshooting
 
+### Quick Diagnostics
+If you get `ModuleNotFoundError: No module named 'RPi'`, run the diagnostic script:
+
+```bash
+python3 troubleshoot_gpio.py
+```
+
 ### Common Issues
 
-1. **Permission denied**: Run with `sudo` or add user to `gpio` group
-2. **No distance readings**: Check wiring and 5V power supply
-3. **Erratic readings**: Ensure stable mounting and clean sensor face
-4. **Service won't start**: Check logs with `sudo journalctl -u proximity-sensor`
+1. **RPi.GPIO not found**: 
+   ```bash
+   # Try these in order:
+   sudo apt install python3-rpi.gpio
+   pip3 install --user RPi.GPIO
+   sudo pip3 install RPi.GPIO
+   ```
+
+2. **Permission denied accessing GPIO**:
+   ```bash
+   sudo usermod -a -G gpio $USER
+   # Log out and back in
+   ```
+
+3. **No distance readings**: 
+   - Check wiring and 5V power supply
+   - Verify sensor connections
+   - Run: `python3 troubleshoot_gpio.py`
+
+4. **Erratic readings**: 
+   - Ensure stable mounting and clean sensor face
+   - Check for loose connections
+   - Add delay between readings in config
+
+5. **Service won't start**: 
+   ```bash
+   sudo journalctl -u proximity-sensor -f
+   ```
 
 ### Debug Mode
 ```bash
 # Enable debug logging
 python3 proximity_sensor.py --log-level DEBUG
+```
+
+### Manual Testing
+```bash
+# Test without service
+sudo systemctl stop proximity-sensor
+cd /home/pi/proximity-sensor
+python3 proximity_sensor.py
 ```
 
 ## Development

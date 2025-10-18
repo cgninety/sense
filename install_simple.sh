@@ -44,11 +44,24 @@ sudo apt upgrade -y
 
 # Install required packages
 print_status "Installing required packages..."
-sudo apt install -y python3-pip python3-dev python3-setuptools curl wget
+sudo apt install -y python3-pip python3-dev python3-setuptools curl wget python3-rpi.gpio
 
-# Install RPi.GPIO
+# Install RPi.GPIO (try multiple methods)
 print_status "Installing RPi.GPIO library..."
-pip3 install --user RPi.GPIO
+if ! python3 -c "import RPi.GPIO" 2>/dev/null; then
+    print_status "Installing RPi.GPIO via apt (system package)..."
+    sudo apt install -y python3-rpi.gpio
+    
+    if ! python3 -c "import RPi.GPIO" 2>/dev/null; then
+        print_status "Installing RPi.GPIO via pip3..."
+        pip3 install --user RPi.GPIO
+        
+        if ! python3 -c "import RPi.GPIO" 2>/dev/null; then
+            print_status "Installing RPi.GPIO via sudo pip3..."
+            sudo pip3 install RPi.GPIO
+        fi
+    fi
+fi
 
 # Create project directory
 PROJECT_DIR="$HOME/proximity-sensor"
